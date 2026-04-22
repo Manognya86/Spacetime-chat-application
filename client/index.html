@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPACETIME CHAT v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#050508;--bg2:#09090f;--bg3:#0f0f1a;--surface:#111120;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --text:#dde0f0;--muted:#505070;--accent:#00d4ff;
+  --danger:#ff2244;--warn:#ffd700;--ok:#00ff88;--purple:#a855f7;
+  --mono:'Space Mono',monospace;--ui:'Syne',sans-serif;
+  --glow:0 0 18px rgba(0,212,255,0.25);
+}
+
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--mono);overflow:hidden}
+
+/* ── STARFIELD ── */
+#stars{position:fixed;inset:0;pointer-events:none;z-index:0}
+#stars canvas{position:absolute;inset:0;width:100%;height:100%}
+
+/* ── LAYOUT ── */
+#app{
+  position:relative;z-index:1;
+  display:grid;
+  grid-template-columns:250px 1fr 210px;
+  grid-template-rows:54px 1fr 76px;
+  height:100vh;
+}
+
+/* ── HEADER ── */
+header{
+  grid-column:1/-1;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 18px;
+  background:rgba(9,9,15,0.97);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(12px);
+  z-index:10;
+}
+.logo{font-family:var(--ui);font-size:14px;font-weight:800;letter-spacing:.25em;color:var(--accent);text-transform:uppercase}
+.logo em{color:var(--muted);font-style:normal}
+#global-clock{font-size:10px;color:var(--muted);letter-spacing:.1em;margin-left:14px}
+#hdr-right{display:flex;align-items:center;gap:14px}
+#hdr-local{font-size:10px;padding:3px 9px;border:1px solid var(--border);border-radius:3px;background:var(--surface);color:var(--text)}
+#conn-dot{width:7px;height:7px;border-radius:50%;background:var(--danger);transition:background .3s}
+#conn-dot.on{background:var(--ok);box-shadow:0 0 7px var(--ok)}
+
+/* ── SIDEBAR LEFT ── */
+#sidebar-l{
+  grid-row:2/3;background:var(--bg2);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.ptitle{
+  font-family:var(--ui);font-size:10px;font-weight:700;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--muted);
+  padding:13px 14px 9px;border-bottom:1px solid var(--border);
+}
+#zones{padding:10px;display:flex;flex-direction:column;gap:5px}
+.zb{
+  display:flex;align-items:center;gap:9px;padding:9px 11px;
+  border-radius:4px;border:1px solid var(--border);background:transparent;
+  cursor:pointer;transition:all .15s;font-family:var(--mono);font-size:11px;color:var(--muted);text-align:left;
+}
+.zb:hover{background:rgba(255,255,255,0.04);color:var(--text)}
+.zb.active{border-color:var(--zc,var(--accent));color:var(--zc,var(--accent));background:rgba(0,0,0,0.3)}
+.zdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.zi{flex:1}.zlabel{font-weight:700;font-size:11px;display:block;font-family:var(--ui)}
+.zscale{font-size:10px;color:var(--muted)}
+
+#clock-panel{margin:0 10px 10px;padding:13px;border-radius:5px;border:1px solid var(--border);background:var(--surface)}
+.clk-label{font-size:10px;color:var(--muted);letter-spacing:.1em;margin-bottom:5px}
+#my-local-time{font-size:21px;font-weight:700;font-family:var(--ui);color:var(--accent)}
+#my-scale{font-size:10px;color:var(--muted);margin-top:3px}
+#time-gap{font-size:10px;color:var(--warn);margin-top:2px;display:none}
+#time-gap.show{display:block}
+
+#name-sec{padding:0 10px 10px}
+.ilabel{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px;display:block}
+#name-input{
+  width:100%;background:var(--surface);border:1px solid var(--border);
+  border-radius:4px;padding:7px 9px;font-family:var(--mono);font-size:12px;
+  color:var(--text);outline:none;transition:border-color .2s;
+}
+#name-input:focus{border-color:var(--accent)}
+
+/* Sync button */
+#sync-btn{
+  margin:0 10px 10px;padding:9px;width:calc(100% - 20px);
+  background:rgba(168,85,247,0.1);border:1px solid var(--purple);
+  border-radius:4px;color:var(--purple);font-family:var(--ui);font-weight:700;
+  font-size:11px;letter-spacing:.1em;cursor:pointer;transition:all .2s;
+}
+#sync-btn:hover{background:rgba(168,85,247,0.2)}
+
+/* ── CHAT AREA ── */
+#chat{
+  grid-row:2/3;display:flex;flex-direction:column;
+  overflow:hidden;background:var(--bg);position:relative;
+}
+#timeline-line{
+  position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:linear-gradient(to bottom,transparent,rgba(0,212,255,.2) 20%,rgba(0,212,255,.2) 80%,transparent);
+  pointer-events:none;
+}
+#timebar{
+  display:flex;align-items:center;gap:10px;padding:7px 18px;
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  font-size:10px;color:var(--muted);letter-spacing:.07em;flex-shrink:0;
+}
+#tb-local{color:var(--accent);font-weight:700}
+.tbsep{color:var(--border)}
+#tb-pending{color:var(--warn)}
+
+/* SYNC OVERLAY */
+#sync-overlay{
+  position:absolute;inset:0;z-index:50;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .5s;
+}
+#sync-overlay.active{opacity:1;pointer-events:all}
+#sync-inner{
+  background:rgba(168,85,247,0.15);border:1px solid var(--purple);
+  border-radius:8px;padding:18px 28px;text-align:center;
+  backdrop-filter:blur(8px);
+}
+#sync-inner h3{font-family:var(--ui);color:var(--purple);font-size:16px;margin-bottom:6px}
+#sync-inner p{font-size:11px;color:var(--muted)}
+#sync-bar{height:3px;background:var(--purple);border-radius:2px;margin-top:12px;width:0%;transition:width linear}
+
+/* GHOST messages (in buffer, not yet arrived) */
+#ghost-zone{
+  position:absolute;bottom:0;left:0;right:0;
+  pointer-events:none;padding:0 18px 6px 22px;
+  display:flex;flex-direction:column-reverse;gap:3px;
+  max-height:120px;overflow:hidden;opacity:0.25;
+  mask-image:linear-gradient(to top,rgba(0,0,0,.6),transparent);
+}
+.ghost-msg{
+  font-size:10px;color:var(--muted);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+  filter:blur(1.5px);letter-spacing:.05em;
+}
+
+#messages{
+  flex:1;overflow-y:auto;padding:14px 18px 80px 22px;
+  display:flex;flex-direction:column;gap:0;scroll-behavior:smooth;
+}
+#messages::-webkit-scrollbar{width:3px}
+#messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* MESSAGE */
+.msg{
+  display:flex;gap:11px;padding:9px 0;
+  border-bottom:1px solid rgba(255,255,255,0.022);
+  animation:msgIn .35s ease;position:relative;
+}
+@keyframes msgIn{from{opacity:0;transform:translateY(5px);filter:blur(2px)}to{opacity:1;transform:none;filter:none}}
+
+.msg.mine{flex-direction:row-reverse}
+.msg.mine .bubble{background:rgba(0,212,255,.07);border-color:rgba(0,212,255,.18)}
+
+.avatar{
+  width:30px;height:30px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:11px;
+  font-weight:700;flex-shrink:0;margin-top:2px;font-family:var(--ui);
+}
+.mbody{flex:1;max-width:480px}
+.msg.mine .mbody{align-items:flex-end;display:flex;flex-direction:column}
+
+.mmeta{display:flex;align-items:center;gap:7px;margin-bottom:3px;font-size:10px;color:var(--muted)}
+.mauthor{font-weight:700;font-family:var(--ui);font-size:12px}
+.mts{font-size:10px}
+
+.bubble{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:2px 8px 8px 8px;padding:7px 11px;
+  font-size:13px;line-height:1.5;word-break:break-word;position:relative;
+}
+.msg.mine .bubble{border-radius:8px 2px 8px 8px}
+
+/* causality */
+.msg.causality .bubble{border-color:var(--warn);animation:cpulse 2s infinite}
+@keyframes cpulse{0%,100%{box-shadow:none}50%{box-shadow:0 0 14px rgba(255,215,0,.25)}}
+.cbadge{
+  font-size:9px;background:rgba(255,215,0,.12);color:var(--warn);
+  border:1px solid rgba(255,215,0,.3);border-radius:3px;
+  padding:2px 5px;margin-left:5px;letter-spacing:.1em;
+}
+
+/* echo */
+.msg.echo .bubble{animation:echoIn .7s ease}
+@keyframes echoIn{0%{transform:scale(1.04);filter:blur(3px);opacity:.4}100%{transform:none;filter:none;opacity:1}}
+
+/* reply ref */
+.rref{
+  font-size:11px;color:var(--muted);border-left:2px solid var(--muted);
+  padding:2px 7px;margin-bottom:5px;opacity:.65;
+  background:rgba(255,255,255,.025);border-radius:0 3px 3px 0;
+}
+
+/* time bomb countdown */
+.bomb-bar{height:2px;border-radius:1px;margin-top:6px;background:var(--danger);transition:width .5s linear}
+
+/* REACTIONS */
+.reactions{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.rxn{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:2px 7px;border-radius:12px;font-size:11px;
+  border:1px solid var(--border);background:rgba(255,255,255,.04);
+  cursor:pointer;transition:all .15s;user-select:none;
+}
+.rxn:hover{background:rgba(255,255,255,.08)}
+.rxn.mine{border-color:var(--accent);background:rgba(0,212,255,.1);color:var(--accent)}
+.rxn-count{font-size:10px;color:var(--muted)}
+
+/* reaction picker */
+.rpicker{
+  position:absolute;bottom:calc(100% + 6px);left:0;
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:6px;padding:6px 8px;display:none;
+  gap:4px;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.6);
+  flex-wrap:wrap;width:180px;
+}
+.rpicker.open{display:flex}
+.rpicker span{font-size:18px;cursor:pointer;padding:3px;border-radius:4px;transition:transform .1s}
+.rpicker span:hover{transform:scale(1.3)}
+
+/* reply button */
+.rbtn{
+  opacity:0;position:absolute;right:-26px;top:50%;transform:translateY(-50%);
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:4px;width:20px;height:20px;display:flex;
+  align-items:center;justify-content:center;cursor:pointer;
+  font-size:10px;color:var(--muted);transition:all .12s;
+}
+.msg:hover .rbtn{opacity:1}
+.rbtn:hover{color:var(--accent);border-color:var(--accent)}
+
+/* react open btn */
+.rxn-open-btn{
+  opacity:0;position:absolute;right:-50px;top:50%;transform:translateY(-50%);
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:4px;width:20px;height:20px;display:flex;
+  align-items:center;justify-content:center;cursor:pointer;
+  font-size:11px;color:var(--muted);transition:all .12s;
+}
+.msg:hover .rxn-open-btn{opacity:1}
+.rxn-open-btn:hover{color:var(--warn);border-color:var(--warn)}
+
+/* deleted */
+.msg.deleted .bubble{opacity:.3;font-style:italic;font-size:11px;color:var(--muted)}
+
+/* sys event */
+.sys{
+  text-align:center;font-size:10px;color:var(--muted);
+  padding:9px 0;letter-spacing:.1em;
+  display:flex;align-items:center;gap:9px;
+}
+.sys::before,.sys::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* TYPING INDICATOR */
+#typing-bar{
+  position:absolute;bottom:0;left:22px;right:0;
+  font-size:11px;color:var(--muted);padding:4px 0;
+  height:22px;overflow:hidden;
+}
+.typing-dot{display:inline-block;animation:tdot 1.2s infinite;margin:0 1px;font-size:14px}
+.typing-dot:nth-child(2){animation-delay:.2s}
+.typing-dot:nth-child(3){animation-delay:.4s}
+@keyframes tdot{0%,80%,100%{opacity:.2}40%{opacity:1}}
+
+/* ── INPUT ── */
+#input-wrap{
+  grid-column:2/3;grid-row:3/4;
+  display:flex;align-items:center;gap:10px;padding:14px 18px;
+  background:var(--bg2);border-top:1px solid var(--border);position:relative;
+}
+#reply-preview{
+  position:absolute;top:-40px;left:18px;right:18px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:4px;padding:7px 11px;font-size:11px;color:var(--muted);
+  display:none;align-items:center;justify-content:space-between;
+}
+#reply-preview.show{display:flex}
+.crp{cursor:pointer;color:var(--danger);font-size:13px}
+
+#msg-input{
+  flex:1;background:var(--surface);border:1px solid var(--border);
+  border-radius:4px;padding:9px 13px;font-family:var(--mono);
+  font-size:13px;color:var(--text);outline:none;
+  transition:border-color .2s;resize:none;height:42px;line-height:1.4;
+}
+#msg-input:focus{border-color:var(--accent);box-shadow:var(--glow)}
+#msg-input::placeholder{color:var(--muted)}
+
+#send-btn{
+  background:rgba(0,212,255,.1);border:1px solid var(--accent);
+  border-radius:4px;padding:9px 16px;color:var(--accent);
+  font-family:var(--ui);font-weight:700;font-size:12px;
+  letter-spacing:.1em;cursor:pointer;transition:all .2s;white-space:nowrap;
+}
+#send-btn:hover{background:rgba(0,212,255,.2);box-shadow:var(--glow)}
+
+/* Timebomb toggle */
+#bomb-toggle{
+  background:rgba(255,34,68,.1);border:1px solid rgba(255,34,68,.3);
+  border-radius:4px;padding:9px 11px;color:var(--danger);
+  font-size:14px;cursor:pointer;transition:all .2s;flex-shrink:0;
+  position:relative;
+}
+#bomb-toggle:hover{background:rgba(255,34,68,.2)}
+#bomb-toggle.active{border-color:var(--danger);background:rgba(255,34,68,.2)}
+#bomb-popup{
+  position:absolute;bottom:calc(100% + 8px);right:0;
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:6px;padding:10px;display:none;z-index:30;
+  width:160px;box-shadow:0 8px 24px rgba(0,0,0,.6);
+}
+#bomb-popup.open{display:block}
+#bomb-popup p{font-size:10px;color:var(--muted);margin-bottom:8px;letter-spacing:.05em}
+.bomb-opt{
+  display:block;width:100%;text-align:left;padding:5px 8px;
+  background:transparent;border:1px solid var(--border);border-radius:3px;
+  color:var(--text);font-family:var(--mono);font-size:11px;cursor:pointer;
+  margin-bottom:4px;transition:all .15s;
+}
+.bomb-opt:hover{background:rgba(255,34,68,.15);border-color:var(--danger);color:var(--danger)}
+.bomb-opt.sel{background:rgba(255,34,68,.2);border-color:var(--danger);color:var(--danger)}
+
+/* ── SIDEBAR RIGHT ── */
+#sidebar-r{
+  grid-row:2/4;background:var(--bg2);
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+#sidebar-l-foot{
+  grid-column:1;grid-row:3;
+  padding:14px 10px;background:var(--bg2);
+  border-right:1px solid var(--border);border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+}
+#user-list{flex:1;overflow-y:auto;padding:8px}
+#user-list::-webkit-scrollbar{width:3px}
+#user-list::-webkit-scrollbar-thumb{background:var(--border)}
+.ui{
+  display:flex;align-items:center;gap:9px;padding:7px 9px;
+  border-radius:4px;margin-bottom:3px;transition:background .1s;
+}
+.ui:hover{background:rgba(255,255,255,.03)}
+.ui.me{background:rgba(0,212,255,.04)}
+.udot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.uinfo{flex:1;min-width:0}
+.uname{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--ui)}
+.utinfo{font-size:9px;color:var(--muted)}
+.uscale-bar{width:38px;height:2px;border-radius:1px;background:var(--border);overflow:hidden;margin-top:3px}
+.uscale-fill{height:100%;border-radius:1px;transition:width .5s}
+
+/* local clock per user (live) */
+.u-local-clock{font-size:9px;color:var(--muted);font-family:var(--mono);margin-top:1px}
+
+/* Causality log */
+#clog{margin:0 8px 8px;padding:9px;border-radius:4px;border:1px solid rgba(255,215,0,.18);background:rgba(255,215,0,.03);max-height:110px;overflow-y:auto;display:none}
+#clog.has{display:block}
+.clog-title{font-size:9px;color:var(--warn);letter-spacing:.15em;text-transform:uppercase;margin-bottom:5px}
+.clog-entry{font-size:10px;color:var(--muted);padding:2px 0;border-bottom:1px solid rgba(255,215,0,.08)}
+
+/* Flash overlays */
+#causality-flash{position:fixed;inset:0;pointer-events:none;z-index:100;display:none}
+#causality-flash.go{display:block;animation:cflash 1.2s ease forwards}
+@keyframes cflash{0%{box-shadow:inset 0 0 0 3px var(--warn),inset 0 0 80px rgba(255,215,0,.1)}100%{box-shadow:none}}
+
+#sync-flash{position:fixed;inset:0;pointer-events:none;z-index:99;display:none}
+#sync-flash.go{display:block;animation:sflash 1s ease forwards}
+@keyframes sflash{0%{box-shadow:inset 0 0 0 3px var(--purple),inset 0 0 80px rgba(168,85,247,.15)}100%{box-shadow:none}}
+
+/* TOAST */
+#toast{
+  position:fixed;bottom:90px;left:50%;
+  transform:translateX(-50%) translateY(16px);
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:4px;padding:9px 16px;font-size:12px;
+  color:var(--text);opacity:0;transition:all .25s;
+  pointer-events:none;z-index:200;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="stars"><canvas id="star-canvas"></canvas></div>
+
+<div id="app">
+<header>
+  <div style="display:flex;align-items:center">
+    <div class="logo">SPACE<em>TIME</em> CHAT <em style="font-size:10px;letter-spacing:.1em">v2</em></div>
+    <div id="global-clock">GLOBAL T+<span id="gtime">00:00:00</span></div>
+  </div>
+  <div id="hdr-right">
+    <div id="hdr-local">LOCAL: <span id="hdr-lt">—</span></div>
+    <div id="conn-dot" title="Disconnected"></div>
+  </div>
+</header>
+
+<!-- SIDEBAR LEFT -->
+<aside id="sidebar-l">
+  <div class="ptitle">⊛ GRAVITY ZONE</div>
+  <div id="zones"></div>
+  <div id="clock-panel">
+    <div class="clk-label">LOCAL TIME</div>
+    <div id="my-local-time">00:00:00</div>
+    <div id="my-scale">×1.0 — DEEP SPACE</div>
+    <div id="time-gap">⏳ <span id="gap-val">0</span>s behind global</div>
+  </div>
+  <div id="name-sec">
+    <label class="ilabel" for="name-input">CALLSIGN</label>
+    <input id="name-input" type="text" maxlength="24" placeholder="Your name…" autocomplete="off">
+  </div>
+  <button id="sync-btn">⟳ REQUEST TIME SYNC</button>
+</aside>
+
+<!-- CHAT -->
+<main id="chat">
+  <div id="timeline-line"></div>
+  <div id="timebar">
+    <span>LOCAL: <span id="tb-local">—</span></span>
+    <span class="tbsep">│</span>
+    <span>GLOBAL: <span id="tb-global">—</span></span>
+    <span class="tbsep">│</span>
+    <span>PENDING: <span id="tb-pending">0</span></span>
+  </div>
+  <div id="messages"></div>
+  <div id="ghost-zone"></div>
+  <div id="typing-bar"></div>
+  <div id="sync-overlay">
+    <div id="sync-inner">
+      <h3>⟳ TEMPORAL SYNC</h3>
+      <p id="sync-msg">All travelers temporarily aligned</p>
+      <div id="sync-bar"></div>
+    </div>
+  </div>
+</main>
+
+<!-- INPUT -->
+<div id="input-wrap">
+  <div id="reply-preview">
+    <span id="rp-text">Replying…</span>
+    <span class="crp" id="cancel-rp">✕</span>
+  </div>
+  <textarea id="msg-input" placeholder="Transmit across spacetime…" rows="1"></textarea>
+  <div style="position:relative">
+    <button id="bomb-toggle" title="Time Bomb">💣</button>
+    <div id="bomb-popup">
+      <p>SELF-DESTRUCT IN:</p>
+      <button class="bomb-opt" data-sec="0">Off</button>
+      <button class="bomb-opt" data-sec="10">10 seconds</button>
+      <button class="bomb-opt" data-sec="30">30 seconds</button>
+      <button class="bomb-opt" data-sec="60">1 minute</button>
+      <button class="bomb-opt" data-sec="120">2 minutes</button>
+    </div>
+  </div>
+  <button id="send-btn">TRANSMIT</button>
+</div>
+
+<!-- SIDEBAR RIGHT -->
+<aside id="sidebar-r">
+  <div class="ptitle">◈ TRAVELERS</div>
+  <div id="user-list"></div>
+  <div id="clog"><div class="clog-title">⚠ Causality Log</div><div id="clog-entries"></div></div>
+</aside>
+
+<!-- SIDEBAR LEFT FOOTER -->
+<div id="sidebar-l-foot">
+  <span style="font-size:10px;color:var(--muted);letter-spacing:.07em">⏱ TIME PERCEPTION ENGINE</span>
+</div>
+
+</div><!-- #app -->
+
+<div id="causality-flash"></div>
+<div id="sync-flash"></div>
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  SPACETIME CHAT v2 — CLIENT ENGINE
+//  KEY FIX: localTime starts at 0 and advances independently.
+//  Messages are buffered against localTime, not server globalTime.
+//  Each client's clock runs at their own timeScale rate.
+// ═══════════════════════════════════════════════════════════════════
+
+const WS_URL = `ws://${location.host}/ws`;
+
+// ── Core state ────────────────────────────────────────────────────
+let ws            = null;
+let myId          = null;
+let myTimeScale   = 1.0;
+let myZone        = 'normal';
+
+// THE FIX: localTime is our own clock that starts at 0 when we connect
+// and advances at myTimeScale rate. It is NOT synced to server global time.
+// The server stamps messages with globalTime (ms since server boot).
+// We locally track an equivalent "localGlobalOffset" so we can compare.
+let localTime     = 0;      // our subjective time (ms), starts at 0
+let lastRAF       = null;   // for delta calculation
+
+// serverGlobalTime: latest tick from server (ms since server boot)
+let serverGlobalTime = 0;
+
+// When we first connect, we record the server's current globalTime
+// as our "local epoch" — our localTime=0 corresponds to this moment.
+// So: a message with globalTime T was sent (T - localEpoch) ms after we connected.
+// We reveal it when localTime >= (T - localEpoch).
+let localEpoch    = 0;
+
+// Sync mode: temporarily force timeScale=1.0
+let syncActive    = false;
+let syncUntil     = 0;
+let syncOrigScale = 1.0;
+
+let messageBuffer = [];     // not yet revealed
+let renderedIds   = new Set();
+let replyingTo    = null;
+let timeBombSec   = 0;
+let users         = {};
+let myName        = '';
+let emojiList     = [];
+let ZONES         = {};
+let typingMap     = {};     // userId -> timeout id
+let msgTimers     = {};     // msgId -> { globalTime, bombSec, el }
+let userLocalTimes= {};     // userId -> their estimated local time (for display)
+let openPicker    = null;
+
+// ── DOM ────────────────────────────────────────────────────────────
+const $msgs       = document.getElementById('messages');
+const $input      = document.getElementById('msg-input');
+const $sendBtn    = document.getElementById('send-btn');
+const $ulist      = document.getElementById('user-list');
+const $zones      = document.getElementById('zones');
+const $nameInput  = document.getElementById('name-input');
+const $connDot    = document.getElementById('conn-dot');
+const $gtime      = document.getElementById('gtime');
+const $myLT       = document.getElementById('my-local-time');
+const $myScale    = document.getElementById('my-scale');
+const $timeGap    = document.getElementById('time-gap');
+const $gapVal     = document.getElementById('gap-val');
+const $tbLocal    = document.getElementById('tb-local');
+const $tbGlobal   = document.getElementById('tb-global');
+const $tbPending  = document.getElementById('tb-pending');
+const $hdrLt      = document.getElementById('hdr-lt');
+const $clog       = document.getElementById('clog');
+const $clogEnt    = document.getElementById('clog-entries');
+const $rpPrev     = document.getElementById('reply-preview');
+const $rpText     = document.getElementById('rp-text');
+const $cancelRp   = document.getElementById('cancel-rp');
+const $syncOverlay= document.getElementById('sync-overlay');
+const $syncMsg    = document.getElementById('sync-msg');
+const $syncBar    = document.getElementById('sync-bar');
+const $cFlash     = document.getElementById('causality-flash');
+const $sFlash     = document.getElementById('sync-flash');
+const $toast      = document.getElementById('toast');
+const $typingBar  = document.getElementById('typing-bar');
+const $ghostZone  = document.getElementById('ghost-zone');
+const $bombToggle = document.getElementById('bomb-toggle');
+const $bombPopup  = document.getElementById('bomb-popup');
+const $syncBtn    = document.getElementById('sync-btn');
+const $timeGapEl  = document.getElementById('time-gap');
+
+// ── Helpers ────────────────────────────────────────────────────────
+const fmt = ms => {
+  const s = Math.floor(Math.abs(ms) / 1000);
+  const h = String(Math.floor(s/3600)).padStart(2,'0');
+  const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
+  const sec = String(s%60).padStart(2,'0');
+  return `${h}:${m}:${sec}`;
+};
+
+function toast(msg, d=2500) {
+  $toast.textContent = msg;
+  $toast.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => $toast.classList.remove('show'), d);
+}
+
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+function escAttr(s){ return s.replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;') }
+function initials(n){ return n.slice(0,2).toUpperCase() }
+
+// Convert server globalTime → local reveal time
+// A message sent at globalTime T should be revealed when:
+//   localTime >= T - localEpoch
+// (because localEpoch is the server globalTime at our "local t=0")
+function revealAt(globalTime) {
+  return globalTime - localEpoch;
+}
+
+// ── Zone UI ────────────────────────────────────────────────────────
+function buildZones(zones) {
+  Object.assign(ZONES, zones);
+  $zones.innerHTML = '';
+  for (const [k, z] of Object.entries(zones)) {
+    const b = document.createElement('button');
+    b.className = 'zb';
+    b.dataset.zone = k;
+    b.style.setProperty('--zc', z.color);
+    b.innerHTML = `<div class="zdot" style="background:${z.color}"></div>
+      <div class="zi"><span class="zlabel">${z.label}</span><span class="zscale">${z.scale}× time</span></div>`;
+    b.addEventListener('click', () => setZone(k));
+    $zones.appendChild(b);
+  }
+}
+
+function setZone(k) {
+  const z = ZONES[k];
+  if (!z) return;
+  myZone = k; myTimeScale = z.scale;
+  document.querySelectorAll('.zb').forEach(b => b.classList.toggle('active', b.dataset.zone === k));
+  $myScale.textContent = `×${z.scale} — ${z.label.toUpperCase()}`;
+  ws?.readyState === 1 && ws.send(JSON.stringify({ type:'set_zone', zone:k }));
+}
+
+// ── User list UI ───────────────────────────────────────────────────
+function renderUsers() {
+  $ulist.innerHTML = '';
+  const scales = Object.values(users).map(u => u.timeScale);
+  const maxScale = Math.max(...scales, 1);
+  for (const [id, u] of Object.entries(users)) {
+    const d = document.createElement('div');
+    d.className = 'ui' + (id === myId ? ' me' : '');
+    d.dataset.uid = id;
+    const pct = Math.min(100, (u.timeScale / maxScale) * 100);
+    d.innerHTML = `
+      <div class="udot" style="background:${u.color}"></div>
+      <div class="uinfo">
+        <div class="uname" style="color:${u.color}">${escHtml(u.name)}${id===myId?' (you)':''}</div>
+        <div class="utinfo">×${u.timeScale} · ${ZONES[u.zone]?.label||u.zone}</div>
+        <div class="uscale-bar"><div class="uscale-fill" style="width:${pct}%;background:${u.color}"></div></div>
+        <div class="u-local-clock" id="ulc-${id}">—</div>
+      </div>`;
+    $ulist.appendChild(d);
+  }
+}
+
+// ── Render message ─────────────────────────────────────────────────
+function renderMessage(msg, isEcho=false) {
+  if (renderedIds.has(msg.id)) return;
+  renderedIds.add(msg.id);
+
+  // Remove from ghost zone
+  const ghost = $ghostZone.querySelector(`[data-gid="${msg.id}"]`);
+  if (ghost) ghost.remove();
+
+  if (msg.type === 'system') {
+    const d = document.createElement('div');
+    d.className = 'sys';
+    d.textContent = msg.text;
+    $msgs.appendChild(d);
+    scrollDown(); return;
+  }
+
+  const isMine = msg.userId === myId;
+  const author = users[msg.userId] || { name: msg.authorName, color: msg.authorColor||'#888' };
+
+  // Causality check
+  let isCausality = false;
+  if (msg.replyTo && !renderedIds.has(msg.replyTo)) {
+    isCausality = true;
+    addCausalityLog(msg, author);
+    triggerCausalityFlash();
+  }
+
+  // Text degradation: how long did it wait?
+  const waitMs = localTime - revealAt(msg.globalTime);
+  const degradeLevel = Math.min(3, Math.floor(Math.max(0, waitMs) / 6000));
+
+  const div = document.createElement('div');
+  div.className = ['msg', isMine?'mine':'', isEcho?'echo':'', isCausality?'causality':''].filter(Boolean).join(' ');
+  div.dataset.msgId = msg.id;
+  div.dataset.globalTime = msg.globalTime;
+
+  let replyHtml = '';
+  if (msg.replyTo) {
+    const origEl = $msgs.querySelector(`[data-msg-id="${msg.replyTo}"]`);
+    const origTxt = origEl ? (origEl.querySelector('.msg-text')?.textContent||'').slice(0,60) : '(not yet arrived)';
+    replyHtml = `<div class="rref">↩ ${escHtml(origTxt)}…</div>`;
+  }
+
+  const cbadge = isCausality ? '<span class="cbadge">⚠ CAUSALITY VIOLATION</span>' : '';
+  const dispText = degradeText(msg.text, degradeLevel);
+
+  // Reactions
+  const rxnHtml = buildReactionsHtml(msg.id, isMine);
+
+  // Time bomb
+  const bombHtml = msg.timeBomb ? `<div class="bomb-bar" id="bbar-${msg.id}" style="width:100%"></div>` : '';
+
+  div.innerHTML = `
+    <div class="avatar" style="background:${author.color}20;color:${author.color};border:1px solid ${author.color}40">
+      ${initials(author.name)}
+    </div>
+    <div class="mbody">
+      <div class="mmeta">
+        <span class="mauthor" style="color:${author.color}">${escHtml(author.name)}</span>
+        ${cbadge}
+        <span class="mts">T+${fmt(msg.globalTime)}</span>
+      </div>
+      ${replyHtml}
+      <div class="bubble" style="position:relative">
+        <div class="rpicker" id="rp-${msg.id}">
+          ${emojiList.map(e=>`<span data-emoji="${e}" data-mid="${msg.id}">${e}</span>`).join('')}
+        </div>
+        <span class="msg-text">${escHtml(dispText)}</span>
+        ${bombHtml}
+        <button class="rbtn" data-mid="${msg.id}" data-author="${escAttr(author.name)}" data-text="${escAttr(msg.text)}">↩</button>
+        <button class="rxn-open-btn" data-mid="${msg.id}">☺</button>
+      </div>
+      ${rxnHtml}
+    </div>`;
+
+  $msgs.appendChild(div);
+
+  // Bind reply
+  div.querySelector('.rbtn').addEventListener('click', e => {
+    const b = e.currentTarget;
+    setReply(b.dataset.mid, b.dataset.author, b.dataset.text);
+  });
+
+  // Bind reaction picker open
+  div.querySelector('.rxn-open-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    const mid = e.currentTarget.dataset.mid;
+    const picker = document.getElementById(`rp-${mid}`);
+    if (openPicker && openPicker !== picker) openPicker.classList.remove('open');
+    picker.classList.toggle('open');
+    openPicker = picker.classList.contains('open') ? picker : null;
+  });
+
+  // Bind emoji picks
+  div.querySelectorAll('.rpicker span').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      sendReaction(el.dataset.mid, el.dataset.emoji);
+      if(openPicker) { openPicker.classList.remove('open'); openPicker=null; }
+    });
+  });
+
+  // Bind existing reaction clicks
+  div.querySelectorAll('.rxn').forEach(bindRxnClick);
+
+  // Start bomb timer
+  if (msg.timeBomb) {
+    msgTimers[msg.id] = { globalTime: msg.globalTime, bombSec: msg.timeBomb };
+  }
+
+  scrollDown();
+}
+
+function degradeText(text, level) {
+  if (level === 0) return text;
+  return text.split('').map(c => {
+    if (c === ' ') return c;
+    const r = Math.random();
+    if (level >= 3 && r < 0.22) return ['?','#','_','!','*'][Math.floor(Math.random()*5)];
+    if (level >= 2 && r < 0.12) return c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase();
+    if (level >= 1 && r < 0.06) return '_';
+    return c;
+  }).join('');
+}
+
+function buildReactionsHtml(msgId, isMine) {
+  // (will be populated by updateReactions)
+  return `<div class="reactions" id="rxns-${msgId}"></div>`;
+}
+
+function updateReactions(msgId, emoji, userIds) {
+  const container = document.getElementById(`rxns-${msgId}`);
+  if (!container) return;
+
+  // update or create rxn button for this emoji
+  let btn = container.querySelector(`[data-emoji="${emoji}"]`);
+  if (userIds.length === 0) {
+    if (btn) btn.remove();
+    return;
+  }
+  const isMine = userIds.includes(myId);
+  const html = `${emoji} <span class="rxn-count">${userIds.length}</span>`;
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.className = 'rxn';
+    btn.dataset.emoji = emoji;
+    btn.dataset.mid = msgId;
+    container.appendChild(btn);
+    bindRxnClick(btn);
+  }
+  btn.innerHTML = html;
+  btn.classList.toggle('mine', isMine);
+}
+
+function bindRxnClick(btn) {
+  btn.addEventListener('click', () => sendReaction(btn.dataset.mid, btn.dataset.emoji));
+}
+
+function sendReaction(msgId, emoji) {
+  ws?.readyState===1 && ws.send(JSON.stringify({ type:'reaction', msgId, emoji }));
+}
+
+// ── Ghost messages (buffer preview) ───────────────────────────────
+function updateGhosts() {
+  $ghostZone.innerHTML = '';
+  const visible = messageBuffer.slice(-4).reverse();
+  for (const msg of visible) {
+    if (msg.type==='system') continue;
+    const a = users[msg.userId] || { name: msg.authorName||'?', color:'#555' };
+    const d = document.createElement('div');
+    d.className = 'ghost-msg';
+    d.dataset.gid = msg.id;
+    d.textContent = `${a.name}: ${msg.text}`;
+    d.style.color = a.color;
+    $ghostZone.appendChild(d);
+  }
+}
+
+// ── Typing ─────────────────────────────────────────────────────────
+let typingActive = false;
+let typingTimer = null;
+
+$input.addEventListener('input', () => {
+  if (!typingActive) {
+    typingActive = true;
+    ws?.readyState===1 && ws.send(JSON.stringify({type:'typing'}));
+  }
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    typingActive = false;
+    ws?.readyState===1 && ws.send(JSON.stringify({type:'stop_typing'}));
+  }, 2500);
+});
+
+function renderTypingBar() {
+  const typers = Object.values(typingMap).filter(t => t.id !== myId);
+  if (!typers.length) { $typingBar.innerHTML = ''; return; }
+  const names = typers.map(t => `<span style="color:${t.color}">${escHtml(t.name)}</span>`).join(', ');
+  $typingBar.innerHTML = `${names} is transmitting <span class="typing-dot">·</span><span class="typing-dot">·</span><span class="typing-dot">·</span>`;
+}
+
+// ── Reply ──────────────────────────────────────────────────────────
+function setReply(id, author, text) {
+  replyingTo = id;
+  $rpPrev.classList.add('show');
+  $rpText.textContent = `↩ ${author}: ${text.slice(0,50)}${text.length>50?'…':''}`;
+  $input.focus();
+}
+$cancelRp.addEventListener('click', () => {
+  replyingTo = null;
+  $rpPrev.classList.remove('show');
+});
+
+// ── Time bomb UI ───────────────────────────────────────────────────
+$bombToggle.addEventListener('click', e => {
+  e.stopPropagation();
+  $bombPopup.classList.toggle('open');
+});
+
+document.querySelectorAll('.bomb-opt').forEach(b => {
+  b.addEventListener('click', () => {
+    timeBombSec = parseInt(b.dataset.sec);
+    document.querySelectorAll('.bomb-opt').forEach(x => x.classList.remove('sel'));
+    b.classList.add('sel');
+    $bombToggle.classList.toggle('active', timeBombSec > 0);
+    $bombPopup.classList.remove('open');
+    if (timeBombSec > 0) toast(`💣 Messages will self-destruct in ${timeBombSec}s`);
+    else toast('💣 Time bomb off');
+  });
+});
+
+document.addEventListener('click', () => {
+  $bombPopup.classList.remove('open');
+  if (openPicker) { openPicker.classList.remove('open'); openPicker=null; }
+});
+
+// ── Send ───────────────────────────────────────────────────────────
+function send() {
+  const text = $input.value.trim();
+  if (!text || ws?.readyState !== 1) return;
+  ws.send(JSON.stringify({
+    type: 'message', text,
+    replyTo: replyingTo,
+    timeBomb: timeBombSec || null,
+  }));
+  $input.value = '';
+  replyingTo = null;
+  $rpPrev.classList.remove('show');
+  typingActive = false;
+  ws.send(JSON.stringify({type:'stop_typing'}));
+}
+
+$sendBtn.addEventListener('click', send);
+$input.addEventListener('keydown', e => {
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+// ── Name ───────────────────────────────────────────────────────────
+$nameInput.addEventListener('change', () => {
+  const n = $nameInput.value.trim();
+  n && ws?.readyState===1 && ws.send(JSON.stringify({type:'set_name',name:n}));
+});
+
+// ── Sync ───────────────────────────────────────────────────────────
+$syncBtn.addEventListener('click', () => {
+  ws?.readyState===1 && ws.send(JSON.stringify({type:'sync_request'}));
+});
+
+function activateSync(duration, requesterName, requesterColor) {
+  syncActive = true;
+  syncOrigScale = myTimeScale;
+  syncUntil = localTime + duration;
+
+  $syncMsg.innerHTML = `<span style="color:${requesterColor}">${escHtml(requesterName)}</span> aligned all travelers`;
+  $syncOverlay.classList.add('active');
+  $syncBar.style.transition = `width ${duration/1000}s linear`;
+  $syncBar.style.width = '0%';
+  setTimeout(() => $syncBar.style.width = '100%', 50);
+
+  // flash
+  $sFlash.classList.remove('go');
+  void $sFlash.offsetWidth;
+  $sFlash.classList.add('go');
+  toast('⟳ Temporal sync activated — all clocks aligned', 3000);
+
+  setTimeout(() => {
+    syncActive = false;
+    $syncOverlay.classList.remove('active');
+    toast('⟳ Sync ended — time dilation resumed');
+  }, duration);
+}
+
+// ── Causality ──────────────────────────────────────────────────────
+function triggerCausalityFlash() {
+  $cFlash.classList.remove('go');
+  void $cFlash.offsetWidth;
+  $cFlash.classList.add('go');
+}
+
+function addCausalityLog(msg, author) {
+  $clog.classList.add('has');
+  const e = document.createElement('div');
+  e.className = 'clog-entry';
+  e.textContent = `${author.name} replied before message arrived (T+${fmt(msg.globalTime)})`;
+  $clogEnt.insertBefore(e, $clogEnt.firstChild);
+  toast('⚠ Causality violation — reply arrived before original', 3500);
+}
+
+// ── Buffer processing ──────────────────────────────────────────────
+function processBuffer() {
+  const toRender = [];
+  const remaining = [];
+
+  for (const msg of messageBuffer) {
+    const revealTime = revealAt(msg.globalTime);
+    if (localTime >= revealTime) {
+      toRender.push(msg);
+    } else {
+      remaining.push(msg);
+    }
+  }
+
+  for (const msg of toRender) {
+    const waitedMs = localTime - revealAt(msg.globalTime);
+    const isEcho = waitedMs > 2500 && myTimeScale < 0.5;
+    renderMessage(msg, isEcho);
+  }
+
+  messageBuffer = remaining;
+  $tbPending.textContent = messageBuffer.length;
+  updateGhosts();
+}
+
+// ── Bomb timers ────────────────────────────────────────────────────
+function tickBombs() {
+  const nowGlobal = localEpoch + localTime;
+  for (const [id, t] of Object.entries(msgTimers)) {
+    const elapsed = (nowGlobal - t.globalTime) / 1000;
+    const remaining = t.bombSec - elapsed;
+    const bar = document.getElementById(`bbar-${id}`);
+    if (bar) {
+      const pct = Math.max(0, (remaining / t.bombSec) * 100);
+      bar.style.width = pct + '%';
+      if (remaining < 5) bar.style.background = 'var(--danger)';
+      else if (remaining < 15) bar.style.background = 'var(--warn)';
+      else bar.style.background = '#555';
+    }
+  }
+}
+
+// ── WebSocket ──────────────────────────────────────────────────────
+function connect() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    $connDot.classList.add('on');
+    toast('✦ Connected to spacetime relay');
+  };
+
+  ws.onclose = () => {
+    $connDot.classList.remove('on');
+    toast('✦ Lost connection — reconnecting…');
+    setTimeout(connect, 2000);
+  };
+
+  ws.onerror = () => {};
+
+  ws.onmessage = e => {
+    let d; try { d = JSON.parse(e.data); } catch { return; }
+    handleMsg(d);
+  };
+}
+
+function handleMsg(d) {
+  switch(d.type) {
+
+    case 'init': {
+      myId = d.userId;
+      serverGlobalTime = d.globalTime;
+      // THE KEY FIX: set our epoch to the current server time
+      // Our localTime=0 maps to server globalTime=d.globalTime
+      localEpoch = d.globalTime;
+      localTime = 0;
+
+      emojiList = d.emojiList || [];
+      buildZones(d.gravityZones);
+
+      for (const u of d.users) users[u.id] = u;
+      renderUsers();
+
+      // Pre-load history — these are old messages, reveal them immediately
+      for (const msg of d.recentMessages) {
+        if (!renderedIds.has(msg.id)) renderMessage(msg, false);
+      }
+
+      // Load existing reactions
+      if (d.reactions) {
+        for (const [msgId, rxns] of Object.entries(d.reactions)) {
+          for (const [emoji, userIds] of Object.entries(rxns)) {
+            updateReactions(msgId, emoji, userIds);
+          }
+        }
+      }
+
+      const me = d.users.find(u => u.id === myId);
+      if (me) { myName = me.name; $nameInput.value = me.name; }
+
+      setZone('normal');
+      break;
+    }
+
+    case 'tick': {
+      serverGlobalTime = d.globalTime;
+      break;
+    }
+
+    case 'pong': {
+      serverGlobalTime = d.globalTime;
+      break;
+    }
+
+    case 'message': {
+      if (!renderedIds.has(d.id)) {
+        messageBuffer.push(d);
+      }
+      break;
+    }
+
+    case 'user_joined': {
+      users[d.userId] = d.user;
+      renderUsers();
+      messageBuffer.push({
+        id: `sys_join_${d.userId}_${d.globalTime}`,
+        type: 'system',
+        text: `${d.user.name} entered spacetime`,
+        globalTime: d.globalTime,
+      });
+      break;
+    }
+
+    case 'user_left': {
+      delete users[d.userId];
+      delete typingMap[d.userId];
+      renderUsers();
+      renderTypingBar();
+      messageBuffer.push({
+        id: `sys_left_${d.userId}_${d.globalTime}`,
+        type: 'system',
+        text: `${d.name} left spacetime`,
+        globalTime: d.globalTime,
+      });
+      break;
+    }
+
+    case 'user_updated': {
+      users[d.userId] = d.user;
+      if (d.userId === myId) {
+        myTimeScale = d.user.timeScale;
+        myZone = d.user.zone;
+        myName = d.user.name;
+        $nameInput.value = myName;
+        document.querySelectorAll('.zb').forEach(b => b.classList.toggle('active', b.dataset.zone === myZone));
+        $myScale.textContent = `×${myTimeScale} — ${ZONES[myZone]?.label?.toUpperCase()||myZone}`;
+      }
+      renderUsers();
+      break;
+    }
+
+    case 'reaction_update': {
+      updateReactions(d.msgId, d.emoji, d.users);
+      break;
+    }
+
+    case 'typing': {
+      if (d.userId === myId) break;
+      clearTimeout(typingMap[d.userId]?.timer);
+      typingMap[d.userId] = {
+        id: d.userId, name: d.name, color: d.color,
+        timer: setTimeout(() => { delete typingMap[d.userId]; renderTypingBar(); }, 4000)
+      };
+      renderTypingBar();
+      break;
+    }
+
+    case 'stop_typing': {
+      if (typingMap[d.userId]) {
+        clearTimeout(typingMap[d.userId].timer);
+        delete typingMap[d.userId];
+        renderTypingBar();
+      }
+      break;
+    }
+
+    case 'sync_event': {
+      activateSync(d.duration, d.requesterName, d.requesterColor);
+      break;
+    }
+
+    case 'message_deleted': {
+      // Remove from buffer
+      messageBuffer = messageBuffer.filter(m => m.id !== d.msgId);
+      // Fade out rendered message
+      const el = $msgs.querySelector(`[data-msg-id="${d.msgId}"]`);
+      if (el) {
+        el.classList.add('deleted');
+        const bubble = el.querySelector('.bubble');
+        if (bubble) bubble.innerHTML = '<em>💣 This message self-destructed</em>';
+        delete msgTimers[d.msgId];
+        setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .8s'; setTimeout(()=>el.remove(),800); }, 300);
+      }
+      break;
+    }
+  }
+}
+
+// ── Main animation loop ────────────────────────────────────────────
+// This is the core time engine. Each frame we advance localTime
+// by (delta * timeScale). Messages are revealed when their
+// revealAt() time is <= our localTime.
+function loop(ts) {
+  if (lastRAF === null) { lastRAF = ts; requestAnimationFrame(loop); return; }
+  const delta = ts - lastRAF;
+  lastRAF = ts;
+
+  // Advance local time
+  const effectiveScale = syncActive ? 1.0 : myTimeScale;
+  localTime += delta * effectiveScale;
+
+  // Update clocks
+  $gtime.textContent   = fmt(serverGlobalTime);
+  $myLT.textContent    = fmt(localTime);
+  $tbLocal.textContent = fmt(localTime);
+  $tbGlobal.textContent= fmt(serverGlobalTime);
+  $hdrLt.textContent   = fmt(localTime);
+
+  // Show how far behind global we are
+  const globalEquiv = localEpoch + localTime;
+  const gapMs = serverGlobalTime - globalEquiv;
+  if (gapMs > 1000) {
+    $timeGap.classList.add('show');
+    $gapVal.textContent = (gapMs/1000).toFixed(0);
+  } else {
+    $timeGap.classList.remove('show');
+  }
+
+  // Update per-user local clocks (estimate)
+  for (const [uid, u] of Object.entries(users)) {
+    const elc = document.getElementById(`ulc-${uid}`);
+    if (!elc) continue;
+    if (uid === myId) {
+      elc.textContent = fmt(localTime);
+    } else {
+      // We don't know their exact local time, show their scale rate vs global
+      elc.textContent = `≈${fmt(serverGlobalTime * u.timeScale)}`;
+    }
+  }
+
+  // Process buffer
+  processBuffer();
+
+  // Bomb timers
+  tickBombs();
+
+  // End sync if timer elapsed
+  if (syncActive && localTime >= syncUntil) {
+    syncActive = false;
+    $syncOverlay.classList.remove('active');
+  }
+
+  requestAnimationFrame(loop);
+}
+
+function scrollDown() {
+  requestAnimationFrame(() => { $msgs.scrollTop = $msgs.scrollHeight; });
+}
+
+// ── Starfield ──────────────────────────────────────────────────────
+(function() {
+  const c = document.getElementById('star-canvas');
+  const ctx = c.getContext('2d');
+  function resize() { c.width = innerWidth; c.height = innerHeight; }
+  resize();
+  addEventListener('resize', resize);
+  const stars = Array.from({length:180}, () => ({
+    x:Math.random(), y:Math.random(),
+    r:Math.random()*1.4+0.3,
+    a:Math.random()*Math.PI*2,
+    sp:Math.random()*0.0004+0.0001,
+  }));
+  function draw() {
+    ctx.clearRect(0,0,c.width,c.height);
+    for(const s of stars) {
+      s.a += s.sp;
+      const al = (Math.sin(s.a)*0.5+0.5)*0.75;
+      ctx.beginPath();
+      ctx.arc(s.x*c.width, s.y*c.height, s.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(180,200,255,${al})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ── Boot ───────────────────────────────────────────────────────────
+requestAnimationFrame(loop);
+connect();
+</script>
+</body>
+</html>
