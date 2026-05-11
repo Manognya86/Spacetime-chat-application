@@ -24,7 +24,6 @@ except ImportError:
 PORT        = int(os.environ.get("PORT", 3000))
 CLIENT_DIR  = pathlib.Path(__file__).parent / "client"
 SERVER_START_MS = time.time() * 1000
-
 GRAVITY_ZONES = {
     "singularity": {"label": "Event Horizon", "scale": 0.05, "color": "#ff2244"},
     "heavy":       {"label": "Heavy Gravity",  "scale": 0.2,  "color": "#ff6b35"},
