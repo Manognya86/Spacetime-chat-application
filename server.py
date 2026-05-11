@@ -10,6 +10,7 @@ import time
 import uuid
 import os
 import pathlib
+
 from typing import Dict, Any
 
 try:
@@ -52,7 +53,6 @@ color_counter = 0
 def now_ms() -> float:
     return time.time() * 1000 - SERVER_START_MS
 
-
 def user_public(uid: str) -> dict:
     u = users[uid]
     return {
@@ -67,13 +67,11 @@ def user_public(uid: str) -> dict:
 def get_user_list() -> list:
     return [user_public(uid) for uid in users]
 
-
 async def _send(ws, payload: str):
     try:
         await ws.send_str(payload)
     except Exception:
         pass
-
 
 async def broadcast(data: dict, exclude_id: str = None):
     payload = json.dumps(data)
@@ -81,10 +79,8 @@ async def broadcast(data: dict, exclude_id: str = None):
         if uid != exclude_id:
             await _send(u["ws"], payload)
 
-
 async def broadcast_all(data: dict):
     await broadcast(data)
-
 
 # ─── WebSocket handler ────────────────────────────────────────────────────────
 async def ws_handler(request):
@@ -150,7 +146,6 @@ async def ws_handler(request):
         })
 
     return ws
-
 
 async def handle_client_msg(uid: str, user: dict, data: dict):
     t   = data.get("type", "")
@@ -226,7 +221,6 @@ async def handle_client_msg(uid: str, user: dict, data: dict):
     elif t == "ping":
         await _send(user["ws"], json.dumps({"type":"pong","globalTime":now}))
 
-
 # ─── Background tasks ─────────────────────────────────────────────────────────
 async def tick_loop():
     while True:
@@ -237,7 +231,6 @@ async def tick_loop():
         for u in list(users.values()):
             await _send(u["ws"], payload)
 
-
 async def typing_gc_loop():
     while True:
         await asyncio.sleep(1)
@@ -246,7 +239,6 @@ async def typing_gc_loop():
         for uid in expired:
             typing_users.pop(uid, None)
             await broadcast_all({"type":"stop_typing","userId":uid,"globalTime":now_ms()})
-
 
 async def timebomb_loop():
     while True:
@@ -257,7 +249,6 @@ async def timebomb_loop():
             messages[:] = [m for m in messages if m["id"] != mid]
             await broadcast_all({"type":"message_deleted","msgId":mid,"globalTime":n})
 
-
 # ─── HTTP ─────────────────────────────────────────────────────────────────────
 async def index_handler(request):
     f = CLIENT_DIR / "index.html"
@@ -266,7 +257,6 @@ async def index_handler(request):
 
 async def status_handler(request):
     return web.json_response({"users": get_user_list(), "messageCount": len(messages), "globalTime": now_ms()})
-
 
 async def main():
     if not HAS_AIOHTTP:
@@ -291,7 +281,6 @@ async def main():
     asyncio.create_task(typing_gc_loop())
     asyncio.create_task(timebomb_loop())
     await asyncio.Future()
-
 
 if __name__ == "__main__":
     try:
